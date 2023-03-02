@@ -5,11 +5,19 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <PID_v1.h>
+//#include <TimeLib.h>
+//#include <TimeAlarms.h>
 
 #define DHTTYPE DHT22  //Define el tipo de sensor (en este caso es el modelo DHT22)
 #define SENSOR 7 // DHT22 conectado al pin 7 del Arduino
 #define PIN_OUTPUT 3 // Pin por el cual se realiza el feedback de la temperatura (pwm)
-
+ 
+int fcA = 11;    // final de carrera A
+int fcB = 12;    // final de carrera B
+int motorvolteo = 5; // motor encargado de realizar el volteo 
+int simulacion = 6; ////*/*/*/*/*/*/*/*/*/*/*/*/**/*/
+bool posA = false; 
+bool posB = false; 
 
 int pinEnt = 4;
 int pinA = 10; 			//variable A a pin digital 9 (CLK en modulo)
@@ -28,6 +36,7 @@ int EncMenu = Pos;
  void encoder(); 
  void menu();
  void configuracion();
+ void volteo();
  int marcadorpuntero=0; 
  
 
@@ -43,10 +52,11 @@ LiquidCrystal_I2C lcd(0x27,16,2);  // Crea el objeto de la LCD
 				                
 
 float temp, hum; //Define variables para almacenar temperatura y humedad
-double spT=26;  // Define el set point de temperatura 
+double spT=27.5;  // Define el set point de temperatura 
 double spH=50;  // Define el set point de HUMEDAD
 double Setpoint, Input, Output; // Definir variables necesarias para l control de temperatura
 double Kp=35, Ki=0.2, Kd=0; //Prametros de regulacion de pid
+int volteohs; // intervalo entre volteo y volteo expresado en horas 
 
 bool conf=false;    //Variables necesarias para el menu 
 bool incub=false;
@@ -87,14 +97,17 @@ void setup() {
 ////////////////////////////////////////////////////////////
    pinMode(botconf, INPUT);  //boton de configuracion como entrada
    
-
-   
    ///*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*
 	pinMode (pinA, Input);     //DERECHA
    pinMode (pinB, Input);     //IZQUIERDA
    pinMode (pinEnt, Input);     //ENTER
 							  
 ///*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*
+   ///////////////volteo///////////////////
+    pinMode(fcA,Input);
+    pinMode(fcB,Input);
+    pinMode(motorvolteo,Output);
+    pinMode(simulacion,Input);
 
 
 }
@@ -117,11 +130,13 @@ void loop() {
   cap = (Output/255*100);   //se combierte el valor de la salida en un valor porsentual 
   analogWrite(PIN_OUTPUT, Output);
  
+   //////////////////////////////////////////volteo///////////////////////////////////
    
-  
+
+  digitalWrite(motorvolteo,HIGH);
   menu();
   encoder();
- 
+
 }
 
 void menu(){
@@ -337,3 +352,13 @@ void menu(){
     Posant=Pos;
     
  }
+
+
+        
+    
+
+         
+         
+   
+    
+ 
