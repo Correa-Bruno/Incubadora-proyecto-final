@@ -5,21 +5,26 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <PID_v1.h>
-//#include <TimeLib.h>
-//#include <TimeAlarms.h>
+#include <TimeLib.h>
+#include <TimeAlarms.h>
 
 #define DHTTYPE DHT22  //Define el tipo de sensor (en este caso es el modelo DHT22)
 #define SENSOR 7 // DHT22 conectado al pin 7 del Arduino
 #define PIN_OUTPUT 3 // Pin por el cual se realiza el feedback de la temperatura (pwm)
  
-int fcA = 11;    // final de carrera A
-int fcB = 12;    // final de carrera B
-int motorvolteo = 5; // motor encargado de realizar el volteo 
-int simulacion = 6; ////*/*/*/*/*/*/*/*/*/*/*/*/**/*/
-bool posA = false; 
-bool posB = false; 
+int fcA = 11;    // final de carrera A pin 11
+int fcB = 12;    // final de carrera B pin12
+int motorvolteo = 2; // motor encargado de realizar el volteo pin 2
 
-int pinEnt = 4;
+
+
+bool posA = false; 
+bool posB = false;
+bool voltear= false; 
+int pinpruebavolteo=A0;
+bool varpruebavolteo;
+
+int pinEnt = 4;        //enter pin 4
 int pinA = 10; 			//variable A a pin digital 9 (CLK en modulo)
 int pinB = 9;  	  //variable B a pin digital 10 (DT en modulo)
 int Pos = 0;       //indica la posicion del encoder 
@@ -37,6 +42,7 @@ int EncMenu = Pos;
  void menu();
  void configuracion();
  void volteo();
+ void onoff();
  int marcadorpuntero=0; 
  
 
@@ -52,7 +58,7 @@ LiquidCrystal_I2C lcd(0x27,16,2);  // Crea el objeto de la LCD
 				                
 
 float temp, hum; //Define variables para almacenar temperatura y humedad
-double spT=27.5;  // Define el set point de temperatura 
+double spT=37.5;  // Define el set point de temperatura 
 double spH=50;  // Define el set point de HUMEDAD
 double Setpoint, Input, Output; // Definir variables necesarias para l control de temperatura
 double Kp=35, Ki=0.2, Kd=0; //Prametros de regulacion de pid
@@ -63,7 +69,7 @@ bool incub=false;
 String incubacionmod = "OFF" ;
 bool enter=false;
 int contMenu=0;
-const int botconf = 8;   //boton de configuracion
+const int botconf = 8;   //boton de configuracion pin8
 bool varCONF;
 
 
@@ -76,7 +82,7 @@ int mov=3;    // frecuencia con la cual se mueven los huevos espresado en hs
 
 PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT); //crea el objeto del PID
 
- 
+ AlarmId id;
 
 
 void setup() {
@@ -98,19 +104,22 @@ void setup() {
    pinMode(botconf, INPUT);  //boton de configuracion como entrada
    
    ///*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*
-	pinMode (pinA, Input);     //DERECHA
-   pinMode (pinB, Input);     //IZQUIERDA
-   pinMode (pinEnt, Input);     //ENTER
+	pinMode (pinA, INPUT);     //DERECHA
+   pinMode (pinB, INPUT);     //IZQUIERDA
+   pinMode (pinEnt, INPUT);     //ENTER
 							  
 ///*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*
    ///////////////volteo///////////////////
-    pinMode(fcA,Input);
-    pinMode(fcB,Input);
-    pinMode(motorvolteo,Output);
-    pinMode(simulacion,Input);
-
-
+    pinMode(fcA,INPUT);
+    pinMode(fcB,INPUT);
+    pinMode(motorvolteo,OUTPUT);
+    pinMode(pinpruebavolteo,INPUT);
+    
+    digitalWrite(motorvolteo,HIGH);
+    
+    
 }
+
 void loop() {
  
    Setpoint = spT/80*1024; 
@@ -128,15 +137,19 @@ void loop() {
   Input = (temp/80*1023); //se combierte el valor de la temperatura a entero
   myPID.Compute();
   cap = (Output/255*100);   //se combierte el valor de la salida en un valor porsentual 
-  analogWrite(PIN_OUTPUT, Output);
+  
  
    //////////////////////////////////////////volteo///////////////////////////////////
+    menu();
+    encoder();
+    volteo();
+    onoff();
+
    
 
-  digitalWrite(motorvolteo,HIGH);
-  menu();
-  encoder();
-
+   
+    
+    
 }
 
 void menu(){
@@ -150,10 +163,11 @@ void menu(){
             if (digitalRead(botconf)==HIGH){
                t=time;
                if(varCONF==true){
-                  //Serial.println("Configuracion");
+                  Serial.println("Configuracion");
                   conf=!conf;
                   varCONF=false;
                   lcd.clear();
+                  
                }
               
             }
@@ -168,7 +182,7 @@ void menu(){
             if (digitalRead(pinEnt)==LOW){
                t=time;
                if(E==false){
-                 // Serial.println("ENTER");
+                  Serial.println("ENTER");
                   enter=!enter;
                   E=true;
                }
@@ -259,7 +273,7 @@ void menu(){
       lcd.print("%");
       lcd.setCursor(0,1);
       lcd.print("I:");
-      lcd.print(incubacionmod);        // CAMBIAR POR VARIABLE DE ENCENDIDO APAGADO
+      lcd.print(incubacionmod);        
       lcd.setCursor(6,1);
       lcd.print("D:");
       lcd.print(diasTRANS);
@@ -353,9 +367,55 @@ void menu(){
     
  }
 
+void volteo(){
+      
+
+      if(time-t>350){
+          varpruebavolteo=true;
+      }
+
+            if (digitalRead(pinpruebavolteo)==HIGH){
+               t=time;
+               if(varpruebavolteo==true){
+                  voltear=true;
+                   Serial.println("prueba de volteo");
+               }
+               }
+                   
+      if (voltear==true){
+         digitalWrite(motorvolteo,LOW);   //enciende el motor de volteo
+         Serial.println("prende volteo");
+         
+      }
+      
+      if((digitalRead(fcA)==HIGH)&&(posA==false)){
+         digitalWrite(motorvolteo,HIGH);   //apaga el motor de volteo
+         voltear=false;
+         posA=true;
+         posB=false;
+         Serial.println("apaga volteo");
+      }
+      if ((digitalRead(fcB)==HIGH)&&(posB==false)){
+         digitalWrite(motorvolteo,HIGH);   //apaga el motor de volteo
+         voltear=false;
+         posB=true;
+         posA=false;
+         Serial.println("apaga volteo");
+         
+      }
+    }
 
         
-    
+    void onoff(){
+
+      if (incub==false){               //quiere decir que la incubadora esta apagada 
+        digitalWrite(PIN_OUTPUT,LOW);
+      }
+       if (incub==true){               //quiere decir que la incubadora esta prendida 
+        analogWrite(PIN_OUTPUT, Output);
+        
+      }
+    }
 
          
          
